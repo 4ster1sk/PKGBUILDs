@@ -1,0 +1,61 @@
+name: デプロイ
+
+on:
+#  schedule:
+#    - cron: '0 2 * * *' # UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  GIT_USER_EMAIL: '41898282+github-actions[bot]@users.noreply.github.com'
+  GIT_USER_NAME: 'github-actions[bot]'
+  GH_TOKEN: ${{ github.token }}
+  GIT_REPO: 'shiosyakeyakini-info/miria'
+
+jobs:
+  deploy:
+    name: deploy
+    runs-on: ubuntu-latest
+
+    steps:
+        - uses: actions/checkout@v4
+
+        - name: Initialize git config
+          run: |
+            git config --local user.name $GIT_USER_NAME
+            git config --local user.email $GIT_USER_EMAIL
+
+        - name: Get version
+          run: |
+            cd miria
+            RELEASE_VERSION="$(gh release view --repo ${{ env.GIT_REPO }} --json tagName | jq -r '.tagName')"
+            echo "RELEASE_VERSION=${RELEASE_VERSION#v}" >> $GITHUB_ENV
+            echo "CURRENT_VERSION=$(cat PKGBUILD | grep '^pkgver=' | cut -d '=' -f2)" >> $GITHUB_ENV
+
+        - name: Check version
+          if: ${{ env.RELEASE_VERSION == ''}}
+          run: | 
+            echo "PKGBUILD: v${{env.CURRENT_VERSION}}"
+            echo "RELEASE: v${{env.RELEASE_VERSION}}"
+            exit 1
+
+        - name: Bump up version
+          if: ${{ env.RELEASE_VERSION != '' && env.CURRENT_VERSION != env.RELEASE_VERSION }}
+          run: |
+            cd miria
+            echo "バージョンの変更があります"
+            echo "PKGBUILD: v${{env.CURRENT_VERSION}}"
+            echo "RELEASE: v${{env.RELEASE_VERSION}}"
+            sed -i "s/pkgver=.*/pkgver=${RELEASE_VERSION}/g" PKGBUILD
+
+            source PKGBUILD
+
+            HASH=$(curl -sL "${source}" | sha256sum | awk '{print $1}')
+            echo "HASH: ${HASH}"
+            sed -i "s/sha256sums=.*/sha256sums=(\"${HASH}\")/g" /PKGBUILD
+
+            git add -u PKGBUILD
+            echo "Bumped version number to $TAR_VERSION" | git commit --file=-
+            git push

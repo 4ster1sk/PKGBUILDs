@@ -1,0 +1,63 @@
+name: デプロイ(miria-bin)
+
+on:
+#  schedule:
+#    - cron: '0 2 * * *' # UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  GIT_USER_EMAIL: '41898282+github-actions[bot]@users.noreply.github.com'
+  GIT_USER_NAME: 'github-actions[bot]'
+  GH_TOKEN: ${{ github.token }}
+  GIT_REPO: 'shiosyakeyakini-info/miria'
+
+jobs:
+  deploy:
+    name: deploy
+    runs-on: ubuntu-latest
+
+    steps:
+        - uses: actions/checkout@v4
+
+        - name: Initialize git config
+          run: |
+            git config --local user.name $GIT_USER_NAME
+            git config --local user.email $GIT_USER_EMAIL
+
+        - name: Get version
+          run: |
+            cd ./miria-bin
+            DEB_URL="$(gh release view $TAG --repo ${{ env.GIT_REPO }} --json assets | jq -r '.assets[] | select(.url | endswith("amd64.deb")).url' | sed -E 's/%2B/\+/g')"
+            echo "CURRENT_VERSION=$(cat PKGBUILD | grep '^pkgver=' | cut -d '=' -f2)" >> $GITHUB_ENV
+            echo "DEB_URL=${DEB_URL}" >> $GITHUB_ENV
+            echo "DEB_VERSION=$(echo "${DEB_URL}" | sed -E 's/.*miria_([0-9\+\.]+)_amd64.deb/\1/')" >> $GITHUB_ENV
+
+        - name: Check version
+          if: ${{ env.DEB_VERSION == ''}}
+          run: | 
+            echo "PKGBUILD: v${{env.CURRENT_VERSION}}"
+            echo "DEB: v${{env.DEB_VERSION}}"
+            exit 1
+
+        - name: Bump up version
+          if: ${{ env.DEB_VERSION != '' && env.CURRENT_VERSION != env.DEB_VERSION }}
+          run: |
+            cd ./miria-bin
+            echo "バージョンの変更があります"
+            echo "PKGBUILD: v${{env.CURRENT_VERSION}}"
+            echo "DEB: v${{env.DEB_VERSION}}"
+            sed -i "s/pkgver=.*/pkgver=${DEB_VERSION}/g" PKGBUILD
+
+            echo "URL: ${{env.DEB_URL}}"
+            sed -i "s|source=.*|source=(\"${{env.DEB_URL}}\")|g" PKGBUILD
+
+            HASH=$(curl -sL ${{env.DEB_URL}} | sha256sum | awk '{print $1}')
+            echo "HASH: ${HASH}"
+            sed -i "s/sha256sums=.*/sha256sums=(\"${HASH}\")/g" /PKGBUILD
+
+            git add -u PKGBUILD
+            echo "Bumped version number to $DEB_VERSION" | git commit --file=-
+            git push

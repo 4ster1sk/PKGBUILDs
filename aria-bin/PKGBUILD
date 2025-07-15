@@ -1,0 +1,33 @@
+# Maintainer: 4sterisk <146138447+4ster1sk@users.noreply.github.com>
+pkgname=aria-bin
+pkgver=1.2.4
+pkgrel=1
+pkgdesc="A Misskey client app forked from Miria."
+arch=('x86_64')
+url="https://github.com/poppingmoon/aria"
+license=('AGPL3')
+depends=('gtk3' 'libsecret')
+source=("https://github.com/poppingmoon/aria/releases/download/v${pkgver}/${pkgname%-bin}-v${pkgver}-linux-x64.tar.gz"
+        "https://raw.githubusercontent.com/poppingmoon/aria/refs/tags/v${pkgver}/snap/gui/aria.png"
+        "https://raw.githubusercontent.com/poppingmoon/aria/refs/tags/v${pkgver}/snap/gui/aria.desktop"
+        "https://raw.githubusercontent.com/poppingmoon/aria/refs/tags/v${pkgver}/LICENSE")
+sha256sums=('9bb998430e548a4c520541609f40f00c1cde2a46964dc24b042b277512c04cb6'
+            'f4a6a6afadd04f48f56013d60a4b8c6050a9c10f561b559e05db5a5c1ac9e4c0'
+            '1b1874df3d87a7410712c470b236db572b8d04a3b73fb41c05eb0c85f1ed0033'
+            '8486a10c4393cee1c25392769ddd3b2d6c242d6ec7928e1414efff7dfb2f07ef')
+
+package() {
+    mkdir -p "${srcdir}/${pkgname%-bin}-v${pkgver}" \
+        "${pkgdir}/opt/aria" \
+        "${pkgdir}/usr/bin"
+
+    bsdtar --no-same-owner -xf "${srcdir}/${pkgname%-bin}-v${pkgver}-linux-x64.tar.gz" -C "${pkgdir}/opt/aria"
+
+    ln -s /opt/aria/aria "${pkgdir}/usr/bin/aria"
+
+    install -Dm 644 "${srcdir}/aria.desktop" "${pkgdir}/usr/share/applications/aria.desktop"
+    install -Dm 644 "${srcdir}/aria.png" "${pkgdir}/usr/share/pixmaps/aria.png"
+    install -Dm 644 "${srcdir}/LICENSE" "${pkgdir}/usr/share/licenses/${pkgname%-bin}/LICENSE"
+
+    sed -i -E "s|^Icon=.*|Icon=aria|g" "${pkgdir}/usr/share/applications/aria.desktop"
+}
